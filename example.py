@@ -12,4 +12,5 @@ corpus = ["特别", "你好"]
 vectorizer = CountVectorizer(tokenizer=lambda x: x.split())
 X = vectorizer.fit_transform(corpus)
 print(vectorizer.get_feature_names_out())  # 输出：['特别', '你好']
-print((X[0] * X[1].T).toarray()[0][0])    # 点积=0（无相似性）
+print((X[0] * X[1].T).toarray()[0][0])   # 点积=0（无相似性）
+print(X[0].dot(X[1].T))
