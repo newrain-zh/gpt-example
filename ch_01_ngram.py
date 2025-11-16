@@ -1,6 +1,6 @@
 from collections import defaultdict, Counter
 
-# 基于概率统计生成文本
+# 基于顺序和概率统计生成文本
 corpus = ["我喜欢吃苹果", "我喜欢吃香蕉", "她喜欢吃葡萄", "他不喜欢吃香蕉", "他喜欢吃苹果", "她喜欢吃草莓"]
 
 
