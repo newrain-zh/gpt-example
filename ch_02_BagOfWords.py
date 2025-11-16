@@ -51,7 +51,6 @@ def cosine_similarity(v1, v2):
 
 
 # 初始化一个全 0 矩阵，用于存储余弦的相似度
-
 similarity_matrix = np.zeros((len(corpus), len(corpus)))
 # 计算每两个句子之间的余弦相似度
 for i in range(len(corpus)):
