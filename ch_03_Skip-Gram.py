@@ -2,7 +2,11 @@ import torch  # 导入torch库
 
 # 定义一个句子列表，后面会用这些句子来训练CBOW和Skip-Gram模型
 sentences = ["Kage is Teacher", "Mazong is Boss", "Niuzong is Boss",
-             "Xiaobing is Student", "Xiaoxue is Student", ]
+             "Xiaobing is Student", "Xiaoxue is Student",
+             # "Apple is a mobile phone brand",
+             # "Apples are a fruit"
+             ]
+
 # 将所有句子连接在一起，然后用空格分隔成多个单词
 words = '  '.join(sentences).split()
 # 构建词汇表，去除重复的词
@@ -12,14 +16,15 @@ word_to_idx = {word: idx for idx, word in enumerate(word_list)}
 # 创建一个字典，将每个索引映射到对应的词
 idx_to_word = {idx: word for idx, word in enumerate(word_list)}
 voc_size = len(word_list)  # 计算词汇表的大小
-print("词汇表：", word_list)  # 输出词汇表
-print("词汇到索引的字典：", word_to_idx)  # 输出词汇到索引的字典
-print("索引到词汇的字典：", idx_to_word)  # 输出索引到词汇的字典
+print(f"词汇表：word_list= {word_list}")  # 输出词汇表
+print(f"词汇到索引的字典：word_to_idx= {word_to_idx}")  # 输出词汇到索引的字典
+print(f"索引到词汇的字典：idx_to_word={idx_to_word}")  # 输出索引到词汇的字典
 print("词汇表大小：", voc_size)  # 输出词汇表大小
 
 
 # 生成Skip-Gram训练数据
-def create_skipgram_dataset(sentences, window_size=2):
+# window_size为2 即考虑目标词前后各 2 个词。
+def create_skipgram_dataset(sentences, window_size=2):  # 默认参数为 2
     data = []  # 初始化数据
     for sentence in sentences:  # 遍历句子
         sentence = sentence.split()  # 将句子分割成单词列表
@@ -39,6 +44,8 @@ skipgram_data = create_skipgram_dataset(sentences)
 print("Skip-Gram数据样例（未编码）：", skipgram_data[:3])
 
 
+# oneHot编码
+# 将单词转换为 one-hot向量表示
 def one_hot_encoding(word, word_to_idx):
     tensor = torch.zeros(len(word_to_idx))  # 创建一个长度与词汇表相同的全0张量
     tensor[word_to_idx[word]] = 1  # 将对应词索引位置上的值设为1
@@ -58,13 +65,21 @@ import torch.nn as nn  # 导入neural network
 
 
 class SkipGram(nn.Module):
+    # embedding_size 嵌入层维度
+    # voc_size 词汇表大小
     def __init__(self, voc_size, embedding_size):
         super(SkipGram, self).__init__()
         # 从词汇表大小到嵌入层大小（维度）的线性层（权重矩阵）
+        # 将 one-hot 编码的单词映射到低维嵌入空间
+        # 把 one-Hot 编码的向量从词汇表大小映射到嵌入层大小，以形成并学习词的向量表示
         self.input_to_hidden = nn.Linear(voc_size, embedding_size, bias=False)
         # 从嵌入层大小（维度）到词汇表大小的线性层（权重矩阵）
+        # 将嵌入向量映射回高维词汇表空间 用于预测上下词
+        # 把词的向量表示从嵌入层大小映射回词汇表大小，以预测目标词
         self.hidden_to_output = nn.Linear(embedding_size, voc_size, bias=False)
 
+    # 定义了前向传播的方式 首先将输入通过输入层到隐藏层的映射生成隐藏层的数据
+    # 然后将隐藏层的数据通过隐藏层到输出层的映射生成输出。
     def forward(self, X):  # 前向传播的方式，X形状为(batch_size, voc_size)
         # 通过隐藏层，hidden形状为 (batch_size, embedding_size)
         hidden = self.input_to_hidden(X)
@@ -75,37 +90,57 @@ class SkipGram(nn.Module):
 
 embedding_size = 2  # 设定嵌入层的大小，这里选择2是为了方便展示
 skipgram_model = SkipGram(voc_size, embedding_size)  # 实例化Skip-Gram模型
-print("Skip-Gram类：", skipgram_model)
+print(f"Skip-Gram类：{skipgram_model}")
 # 训练Skip-Gram类
-learning_rate = 0.001 # 设置学习速率
-epochs = 1000 # 设置训练轮次
+learning_rate = 0.001  # 设置学习速率
+epochs = 1000  # 设置训练轮次
 criterion = nn.CrossEntropyLoss()  # 定义交叉熵损失函数
-import torch.optim as optim # 导入随机梯度下降优化器
+import torch.optim as optim  # 导入随机梯度下降优化器
+
 optimizer = optim.SGD(skipgram_model.parameters(), lr=learning_rate)
 # 开始训练循环
 loss_values = []  # 用于存储每轮的平均损失值
 for epoch in range(epochs):
-    loss_sum = 0 # 初始化损失值
+    loss_sum = 0  # 初始化损失值
     for center_word, context in skipgram_data:
-        X = one_hot_encoding(center_word, word_to_idx).float().unsqueeze(0) # 将中心词转换为 One-Hot 向量
-        y_true = torch.tensor([word_to_idx[context]], dtype=torch.long) # 将周围词转换为索引值
+        # 将中心词转换为 one-hot向量并增加批次维度
+        X = one_hot_encoding(center_word, word_to_idx).float().unsqueeze(0)  # 将中心词转换为 One-Hot 向量
+        # 目标数据（真实值） 即上下文词的索引 word_to_idx[context]
+        y_true = torch.tensor([word_to_idx[context]], dtype=torch.long)  # 将周围词转换为索引值
+        # 模型的输出 ，是预测值
         y_pred = skipgram_model(X)  # 计算预测值
         loss = criterion(y_pred, y_true)  # 计算损失
-        loss_sum += loss.item() # 累积损失
+        loss_sum += loss.item()  # 累积损失
         optimizer.zero_grad()  # 清空梯度
         loss.backward()  # 反向传播
         optimizer.step()  # 更新参数
-    if (epoch+1) % 100 == 0: # 输出每100轮的损失，并记录损失
-        print(f"Epoch: {epoch+1}, Loss: {loss_sum/len(skipgram_data)}")
+    if (epoch + 1) % 100 == 0:  # 输出每100轮的损失，并记录损失
+        print(f"Epoch: {epoch + 1}, Loss: {loss_sum / len(skipgram_data)}")
         loss_values.append(loss_sum / len(skipgram_data))
+
 # 绘制训练损失曲线
-import matplotlib.pyplot as plt # 导入matplotlib
+import matplotlib.pyplot as plt  # 导入matplotlib
+
 # 绘制二维词向量图
-plt.rcParams["font.family"]=['Source Han Sans SC'] # 用来设定字体样式
-plt.rcParams['font.sans-serif']=['Source Han Sans SC'] # 用来设定无衬线字体样式
-plt.rcParams['axes.unicode_minus']=False # 用来正常显示负号
-plt.plot(range(1, epochs//100 + 1), loss_values) # 绘图
-plt.title('训练损失曲线') # 图题
-plt.xlabel('轮次') # X轴Label
-plt.ylabel('损失') # Y轴Label
-plt.show() # 显示图
+plt.rcParams["font.family"] = ['Source Han Sans SC']  # 用来设定字体样式
+plt.rcParams['font.sans-serif'] = ['Source Han Sans SC']  # 用来设定无衬线字体样式
+plt.rcParams['axes.unicode_minus'] = False  # 用来正常显示负号
+plt.plot(range(1, epochs // 100 + 1), loss_values)  # 绘图
+plt.title('训练损失曲线')  # 图题
+plt.xlabel('轮次')  # X轴Label
+plt.ylabel('损失')  # Y轴Label
+plt.show()  # 显示图
+print("\n")
+print("Skip-Gram词嵌入：")
+for word, idx in word_to_idx.items():  # 输出每个词的嵌入向量
+    print(f"{word}: {skipgram_model.input_to_hidden.weight[:, idx].detach().numpy()}")
+
+fig, ax = plt.subplots()
+for word, idx in word_to_idx.items():
+    vec = skipgram_model.input_to_hidden.weight[:, idx].detach().numpy()
+    ax.scatter(vec[0], vec[1])  # 在图中绘制嵌入向量的点
+    ax.annotate(word, (vec[0], vec[1]), fontsize=10)
+plt.title('二维词嵌入')
+plt.xlabel('向量维度1')
+plt.xlabel('向量维度2')
+plt.show()
